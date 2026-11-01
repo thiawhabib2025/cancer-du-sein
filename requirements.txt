@@ -1,0 +1,45 @@
+# --- Socle scientifique ---
+numpy>=1.24,<2.0
+pandas>=2.0
+scipy>=1.11
+scikit-learn>=1.3          # StratifiedGroupKFold
+pyyaml>=6.0
+
+# --- Imagerie médicale ---
+pydicom>=2.4               # lecture DICOM
+pylibjpeg>=2.0             # décodage JPEG lossless (CBIS-DDSM en a besoin)
+pylibjpeg-libjpeg>=2.0
+opencv-python-headless>=4.8
+Pillow>=10.0
+scikit-image>=0.22
+
+# --- Deep learning ---
+torch>=2.1
+torchvision>=0.16
+timm>=0.9                  # ReXNet, Swin, ViT, EfficientNet
+albumentations>=1.3
+
+# --- Explicabilité ---
+grad-cam>=1.5
+shap>=0.44
+captum>=0.7
+
+# --- Suivi d'expériences ---
+wandb>=0.16
+
+# --- Visualisation ---
+matplotlib>=3.7
+seaborn>=0.13
+
+# --- API ---
+fastapi>=0.109
+uvicorn[standard]>=0.27
+python-multipart>=0.0.6
+pydantic>=2.5
+
+# --- Démonstration de recherche ---
+streamlit>=1.30
+
+# --- Qualité ---
+pytest>=7.4
+ruff>=0.2

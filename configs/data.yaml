@@ -1,0 +1,157 @@
+# Configuration des données — source unique de vérité pour tout le pipeline.
+# Aucun chemin ne doit apparaître en dur dans le code.
+
+seed: 42
+
+paths:
+  raw: data/raw
+  processed: data/processed
+  manifest: data/manifest.csv
+  results: results
+
+# ---------------------------------------------------------------------------
+# Datasets
+#   enabled: false  → ignoré par build_manifest sans faire échouer le pipeline
+#   Permet de démarrer avec 3 datasets et d'activer les autres à leur arrivée.
+# ---------------------------------------------------------------------------
+datasets:
+
+  cbis_ddsm:
+    enabled: false
+    modality: mammography
+    raw_dir: data/raw/CBIS-DDSM        # version Kaggle (awsaf49) : csv/ + jpeg/
+    csv_files:
+      - mass_case_description_train_set.csv
+      - mass_case_description_test_set.csv
+      - calc_case_description_train_set.csv
+      - calc_case_description_test_set.csv
+    has_masks: true
+    has_age: false          # CBIS-DDSM ne fournit pas l'âge
+    notes: "~1644 cas. Version Kaggle JPEG : résolution des chemins via dicom_info.csv."
+
+  mias:
+    enabled: false
+    modality: mammography
+    raw_dir: data/raw/mias
+    info_file: Info.txt
+    has_masks: false        # cercles (x, y, rayon) seulement
+    has_age: false
+    notes: "322 images / 161 patientes. Film numérisé 1024x1024 — décalage de domaine majeur."
+
+  busi:
+    enabled: true
+    modality: ultrasound
+    raw_dir: data/raw/busi
+    has_masks: true
+    has_age: false          # tranche 25-75 ans connue au niveau population seulement
+    exclude_classes: [normal]   # on garde une tâche binaire bénin/malin
+    notes: "780 images / 600 patientes (Le Caire). Attention : plusieurs images par patiente."
+
+  cmmd:
+    enabled: true
+    modality: mammography
+    raw_dir: data/raw/cmmd
+    clinical_file: CMMD_clinicaldata_revision.xlsx
+    has_masks: false
+    has_age: true           # ← AGE REEL : source principale de données cliniques C0
+    notes: "1775 patientes, 3712 mammographies. Âge + type de lésion + marqueurs IHC."
+
+  # ---------------------------------------------------------------------
+  # INbreast et UDIAT ont été ABANDONNÉS (décision du 8 août 2026).
+  # Motif : accès sur demande aux auteurs, délai imprévisible = principal
+  # risque de planning du projet. Remplacés par CMMD (mammo) et BrEaST +
+  # BUS-UCLM (écho), tous librement téléchargeables et plus volumineux.
+  # Ne pas les réintroduire sans arbitrage explicite : cela réactiverait
+  # une dépendance externe non maîtrisée.
+  # ---------------------------------------------------------------------
+
+  breast_poland:            # BrEaST-Lesions-USG — remplaçant d'UDIAT
+    enabled: false
+    modality: ultrasound
+    raw_dir: data/raw/breast
+    has_masks: true
+    has_age: true           # ← ÂGE RÉEL + BI-RADS (notation 4a/4b/4c)
+    notes: "256 cas (Pologne). xlsx clinique Dec-15-2023, masques caseNNN_tumor.png."
+
+  bus_uclm:                 # BUS-UCLM — Scientific Data 2025
+    enabled: false
+    modality: ultrasound
+    raw_dir: data/raw/bus-uclm
+    has_masks: true         # masques RGB (vert=bénin, rouge=malin)
+    has_age: false
+    exclude_classes: [normal]
+    notes: "683 images / 38 patientes (préfixe fichier = patiente). TEST EXTERNE uniquement."
+
+# ---------------------------------------------------------------------------
+# Prétraitement
+# ---------------------------------------------------------------------------
+preprocessing:
+  image_size: 224           # 384 pour les ViT — surchargé par configs/models/*.yaml
+  to_rgb: true              # duplication du canal gris (backbones pré-entraînés ImageNet)
+  apply_voi_lut: true       # CRITIQUE : sans les LUT DICOM, le contraste des
+                            # microcalcifications est détruit
+  normalize:
+    mean: [0.485, 0.456, 0.406]
+    std:  [0.229, 0.224, 0.225]
+
+augmentation:
+  rotation_deg: 15
+  hflip_prob: 0.5
+  vflip_prob: 0.0           # DÉLIBÉRÉMENT NUL : la latéralité a un sens
+                            # anatomique en mammographie (CC/MLO orientées)
+  brightness_contrast: 0.15
+  gauss_noise_prob: 0.2
+
+# ---------------------------------------------------------------------------
+# Découpage — voir src/data/splits.py
+# ---------------------------------------------------------------------------
+split:
+  n_splits: 5
+  strategy: stratified_group_kfold
+  group_col: patient_id     # NE JAMAIS CHANGER (cf. README, règle n°1)
+  label_col: label
+  test_size: 0.15           # hold-out externe retiré avant la validation croisée
+
+# ---------------------------------------------------------------------------
+# Données cliniques — DÉCISION D'ÉQUIPE du 8 août 2026 : C0 UNIQUEMENT
+#
+# Seules les variables RÉELLES entrent dans le modèle. La génération
+# synthétique (family_history, brca, bmi) est retirée du périmètre : le CdC
+# §5.4 est amendé en conséquence. clinical_synth.py reste disponible pour une
+# éventuelle étude annexe mais n'est plus sur le chemin critique.
+# ---------------------------------------------------------------------------
+clinical:
+  use_synthetic: false      # ← décision n°2 : ne pas réactiver sans arbitrage
+  real_columns: [age, lesion_type]
+
+  # Conservé pour l'étude annexe éventuelle (clinical_synth.py) :
+  synthetic_columns: [family_history, brca, bmi]
+  max_clinical_auc: 0.65
+
+# ---------------------------------------------------------------------------
+# Généralisation inter-datasets — protocole révisé (8 août 2026)
+#
+# Le protocole du CdC §5.5 reposait sur INbreast, abandonné. Il est reconstruit
+# sur CMMD, ce qui l'AMÉLIORE : CMMD compte 1 775 patientes contre 115 cas pour
+# INbreast, donc bien plus de puissance statistique en test externe.
+#
+# Le protocole est en outre étendu à l'échographie, ce que le CdC ne prévoyait
+# pas — c'est désormais possible puisqu'on dispose de 3 datasets échographiques
+# librement accessibles.
+# ---------------------------------------------------------------------------
+generalization:
+
+  # --- Mammographie -----------------------------------------------------
+  # MIAS en test = décalage de domaine le plus violent (film numérisé des
+  # années 1990 vs mammographie numérique). Cible réaliste : AUC 0,75.
+  mammo_A: {train: [cbis_ddsm, cmmd],  test: mias}
+  # CMMD en test = décalage de population (cohorte chinoise vs américaine),
+  # équipement moderne des deux côtés. Cible : AUC 0,80.
+  mammo_B: {train: [cbis_ddsm, mias],  test: cmmd}
+  mammo_C: {train: [cmmd, mias],       test: cbis_ddsm}
+
+  # --- Échographie ------------------------------------------------------
+  # Trois pays, équipements différents : décalage d'opérateur et de sonde.
+  us_A: {train: [busi, breast_poland], test: bus_uclm}
+  us_B: {train: [busi, bus_uclm],      test: breast_poland}
+  us_C: {train: [breast_poland, bus_uclm], test: busi}

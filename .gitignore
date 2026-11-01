@@ -1,0 +1,47 @@
+# Données — jamais commitées
+data/raw/
+data/processed/
+data/cache/
+data/*.csv
+!data/.gitkeep
+**/data/raw/
+**/data/cache/
+data/manifest.csv
+src/data/manifest.csv
+
+# Poids et sorties d'entraînement
+checkpoints/
+runs/
+wandb/
+*.pt
+*.pth
+*.ckpt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Frontend
+node_modules/
+frontend/build/
+frontend/dist/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
