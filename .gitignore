@@ -1,15 +1,14 @@
-# Données — jamais commitées
-data/raw/
-data/processed/
-data/cache/
-data/*.csv
-!data/.gitkeep
-**/data/raw/
-**/data/cache/
+# Donnees : on garde la structure, pas le contenu
+data/raw/*
+!data/raw/.gitkeep
+data/cache/*
+!data/cache/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
 data/manifest.csv
 src/data/manifest.csv
 
-# Poids et sorties d'entraînement
+# Poids et sorties d'entrainement
 checkpoints/
 runs/
 wandb/
@@ -22,6 +21,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.venv-mammo/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
